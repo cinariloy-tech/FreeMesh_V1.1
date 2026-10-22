@@ -18,10 +18,19 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Android platform and build tools
+      - name: Install Android SDK
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          SDK_ROOT=$HOME/android-sdk
+          mkdir -p $SDK_ROOT/cmdline-tools
+          cd $SDK_ROOT/cmdline-tools
+          curl -sSL -o tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q tools.zip
+          mv cmdline-tools latest
+          SDKMANAGER=$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager
+          yes | $SDKMANAGER --sdk_root=$SDK_ROOT --licenses > /dev/null || true
+          $SDKMANAGER --sdk_root=$SDK_ROOT "platforms;android-34" "build-tools;34.0.0"
+          echo "ANDROID_HOME=$SDK_ROOT" >> $GITHUB_ENV
+          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
