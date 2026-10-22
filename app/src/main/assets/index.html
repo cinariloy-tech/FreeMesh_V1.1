@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Free Mesh</title>
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-2: #f6f8fa;
+    --card: rgba(0,0,0,0.035);
+    --card-2: rgba(0,0,0,0.06);
+    --border: rgba(0,0,0,0.09);
+    --text: #1f2328;
+    --muted: #656d76;
+    --amber: #d97706;
+    --amber-dim: rgba(255,159,10,0.15);
+    --green: #1a7f37;
+    --green-dim: rgba(48,209,88,0.15);
+    --blue: #0a84ff;
+    --blue-dim: rgba(10,132,255,0.15);
+    --danger: #ff453a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+
+  /* ---------- Arka plan: topografik ızgara + animasyonlu katman ---------- */
+  .topo {
+    position: fixed; inset: -50%;
+    background:
+      repeating-radial-gradient(circle at 30% 40%, transparent 0 38px, rgba(10,132,255,0.07) 39px, transparent 41px),
+      repeating-radial-gradient(circle at 75% 70%, transparent 0 52px, rgba(255,159,10,0.05) 53px, transparent 55px),
+      linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+    background-size: auto, auto, 40px 40px, 40px 40px;
+    animation: topoDrift 60s linear infinite;
+    z-index: 0;
+    pointer-events: none;
+  }
+  @keyframes topoDrift {
+    from { transform: translate(0,0) rotate(0deg); }
+    to   { transform: translate(-40px,-40px) rotate(2deg); }
+  }
+  #mesh-bg {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    z-index: 0; pointer-events: none;
+  }
+  .vignette {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(255,255,255,0.85) 100%);
+  }
+
+  /* ---------- Telefon çerçevesi ---------- */
+  .phone {
+    position: relative; z-index: 2;
+    width: 390px; height: 844px; max-height: calc(100vh - 32px);
+    background: #e5e7eb;
+    border-radius: 48px;
+    padding: 11px;
+    box-shadow:
+      0 0 0 2px #2a313c,
+      0 0 0 4px #14181f,
+      0 40px 80px -10px rgba(0,0,0,0.7),
+      0 0 60px -20px rgba(10,132,255,0.35);
+  }
+  .screen-frame {
+    position: relative;
+    width: 100%; height: 100%;
+    background: var(--bg);
+    border-radius: 38px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .notch {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 110px; height: 30px; background: #e5e7eb; border-radius: 20px; z-index: 20;
+  }
+
+  /* ---------- Durum çubuğu (mesh) ---------- */
+  .statusbar {
+    padding: 14px 22px 8px;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px; color: var(--muted);
+    background: rgba(255,255,255,0.9);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    z-index: 10;
+  }
+  .mesh-stats { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }
+  .stat { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .stat b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  .battery {
+    display: flex; align-items: center; gap: 3px;
+  }
+  .battery-body {
+    width: 20px; height: 10px; border: 1.5px solid var(--muted); border-radius: 3px; position: relative; padding: 1px;
+  }
+  .battery-body::after {
+    content: ""; position: absolute; right: -4px; top: 2px; width: 2px; height: 4px; background: var(--muted); border-radius: 0 1px 1px 0;
+  }
+  .battery-fill { height: 100%; width: 78%; background: var(--green); border-radius: 1px; }
+
+  /* ---------- Ekran içerikleri ---------- */
+  .screens { flex: 1; position: relative; overflow: hidden; }
+  .screen {
+    position: absolute; inset: 0;
+    display: none; flex-direction: column;
+    animation: fadeIn 0.35s ease;
+  }
+  .screen.active { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .header {
+    padding: 18px 20px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.3px; }
+  .header .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: var(--card-2); border: 1px solid var(--border);
+    color: var(--amber); display: grid; place-items: center; cursor: pointer;
+    transition: transform .15s, background .15s;
+  }
+  .icon-btn:active { transform: scale(0.92); }
+  .icon-btn svg { width: 18px; height: 18px; }
+
+  .scroll { flex: 1; overflow-y: auto; padding: 0 16px 16px; scrollbar-width: none; }
+  .scroll::-webkit-scrollbar { display: none; }
+
+  .search {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 12px; margin-bottom: 12px;
+  }
+  .search input {
+    background: transparent; border: 0; outline: 0; color: var(--text); width: 100%; font-size: 14px;
+  }
+  .search svg { width: 16px; height: 16px; color: var(--muted); flex-shrink: 0; }
+
+  /* ---------- Kişiler ---------- */
+  .contact {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px; border-radius: 16px; margin-bottom: 8px;
+    background: var(--card); border: 1px solid var(--border);
+    cursor: pointer; transition: background .15s, transform .1s;
+  }
+  .contact:active { transform: scale(0.98); background: var(--card-2); }
+  .avatar {
+    width: 44px; height: 44px; border-radius: 14px; flex-shrink: 0;
+    display: grid; place-items: center; font-weight: 700; font-size: 15px;
+    background: linear-gradient(135deg, var(--blue), #5e5ce6); color: #fff;
+    position: relative;
+  }
+  .avatar.amber { background: linear-gradient(135deg, #ff9f0a, #ff5e00); }
+  .avatar.green { background: linear-gradient(135deg, #30d158, #248a3d); }
+  .avatar .status {
+    position: absolute; right: -2px; bottom: -2px; width: 12px; height: 12px;
+    border-radius: 50%; border: 2px solid var(--bg);
+  }
+  .contact .info { flex: 1; min-width: 0; }
+  .contact .name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .contact .meta { font-size: 11px; color: var(--muted); font-family: ui-monospace, "SF Mono", Menlo, monospace; margin-top: 3px; }
+  .signal { text-align: right; font-size: 11px; color: var(--muted); }
+  .signal .bars { display: flex; gap: 2px; justify-content: flex-end; align-items: flex-end; height: 12px; margin-bottom: 3px; }
+  .signal .bars i { width: 3px; background: var(--card-2); border-radius: 1px; display: block; }
+  .signal .bars i.on { background: var(--green); }
+  .signal .bars i.on.mid { background: var(--amber); }
+  .signal .bars i.on.weak { background: var(--danger); }
+  .signal .val { font-variant-numeric: tabular-nums; }
+
+  .add-btn {
+    width: 100%; margin-top: 8px; padding: 14px;
+    border-radius: 14px; border: 1px dashed rgba(255,159,10,0.5);
+    background: var(--amber-dim); color: var(--amber);
+    font-weight: 600; font-size: 14px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .add-btn:active { transform: scale(0.98); }
+
+  /* ---------- Sheet (Yeni düğüm formu) ---------- */
+  .sheet-overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.55);
+    opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 15;
+  }
+  .sheet-overlay.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 16;
+    background: var(--bg-2); border-top: 1px solid var(--border);
+    border-radius: 24px 24px 0 0; padding: 18px 20px 24px;
+    transform: translateY(100%); transition: transform .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .sheet.open { transform: translateY(0); }
+  .sheet .grip { width: 40px; height: 4px; border-radius: 2px; background: var(--card-2); margin: 0 auto 14px; }
+  .sheet h2 { font-size: 18px; margin-bottom: 14px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .field input {
+    width: 100%; padding: 12px 14px; border-radius: 12px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text); font-size: 15px; outline: 0;
+    font-family: inherit;
+  }
+  .field input:focus { border-color: var(--amber); }
+  .field input.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; text-transform: uppercase; }
+  .field .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .field .hint.err { color: var(--danger); }
+  .btn-primary {
+    width: 100%; padding: 14px; border: 0; border-radius: 14px;
+    background: linear-gradient(135deg, #ff9f0a, #ff5e00); color: #1f2328;
+    font-weight: 700; font-size: 15px; cursor: pointer; margin-top: 6px;
+  }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-secondary {
+    width: 100%; padding: 14px; border-radius: 14px; margin-top: 8px;
+    background: var(--card-2); color: var(--text); border: 1px solid var(--border);
+    font-weight: 600; font-size: 15px; cursor: pointer;
+  }
+
+  /* ---------- Mesajlar ---------- */
+  .chat-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.85); backdrop-filter: blur(8px);
+  }
+  .back {
+    width: 34px; height: 34px; border-radius: 50%; border: 0;
+    background: var(--card-2); color: var(--text); cursor: pointer; display: grid; place-items: center;
+  }
+  .back svg { width: 16px; height: 16px; }
+  .chat-head .who { flex: 1; min-width: 0; }
+  .chat-head .who .name { font-weight: 600; font-size: 15px; }
+  .chat-head .who .route { font-size: 11px; color: var(--muted); font-family: ui-monospace, "SF Mono", Menlo, monospace; margin-top: 2px; }
+  .chat-head .call-btn { color: var(--green); }
+
+  .chat-body {
+    flex: 1; overflow-y: auto; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+    scrollbar-width: none;
+  }
+  .chat-body::-webkit-scrollbar { display: none; }
+  .day-tag {
+    align-self: center; font-size: 10px; color: var(--muted);
+    background: var(--card); border: 1px solid var(--border);
+    padding: 3px 10px; border-radius: 20px; margin: 4px 0;
+    text-transform: uppercase; letter-spacing: .6px;
+  }
+  .bubble {
+    max-width: 78%; padding: 10px 13px; border-radius: 18px;
+    font-size: 14px; line-height: 1.4; word-wrap: break-word;
+    animation: bubbleIn .25s ease;
+  }
+  @keyframes bubbleIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+  .bubble.in {
+    align-self: flex-start; background: var(--card-2); color: var(--text);
+    border-bottom-left-radius: 6px; border: 1px solid var(--border);
+  }
+  .bubble.out {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #0a84ff, #0066cc); color: #fff;
+    border-bottom-right-radius: 6px;
+  }
+  .bubble .time {
+    display: flex; align-items: center; gap: 4px; justify-content: flex-end;
+    font-size: 10px; opacity: .65; margin-top: 4px;
+  }
+  .bubble .hops {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px; opacity: .7; margin-top: 4px;
+  }
+  .tick { color: var(--green); font-weight: 700; }
+  .tick.pending { color: var(--muted); }
+
+  .composer {
+    display: flex; gap: 8px; align-items: flex-end;
+    padding: 10px 12px 12px; border-top: 1px solid var(--border);
+    background: rgba(255,255,255,0.9);
+  }
+  .composer textarea {
+    flex: 1; resize: none; max-height: 110px; min-height: 42px;
+    padding: 11px 14px; border-radius: 20px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text); font-family: inherit; font-size: 14px; outline: 0;
+  }
+  .composer textarea:focus { border-color: var(--blue); }
+  .send-btn {
+    height: 42px; padding: 0 16px; border-radius: 20px; border: 0;
+    background: var(--amber); color: #1f2328; font-weight: 700; font-size: 14px;
+    cursor: pointer; transition: transform .1s, opacity .2s;
+    flex-shrink: 0;
+  }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .empty-chat {
+    margin: auto; text-align: center; color: var(--muted); font-size: 13px; padding: 30px;
+  }
+  .empty-chat .big { font-size: 40px; margin-bottom: 8px; }
+
+  /* ---------- Numara çevirici ---------- */
+  .dial-display {
+    padding: 14px 20px 6px; text-align: center; min-height: 92px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .dial-number {
+    font-size: 32px; font-weight: 300; letter-spacing: 2px; min-height: 40px;
+    font-variant-numeric: tabular-nums; word-break: break-all;
+  }
+  .dial-number .caret { display: inline-block; width: 2px; height: 28px; background: var(--amber); vertical-align: middle; margin-left: 2px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .dial-hint { font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 14px; }
+  .dial-hint .ok { color: var(--green); }
+  .dial-hint .no { color: var(--danger); }
+
+  .keypad {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    padding: 8px 28px 14px; justify-items: center;
+  }
+  .key {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text); cursor: pointer; font-size: 26px; font-weight: 400;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    transition: background .1s, transform .08s;
+    font-family: inherit;
+  }
+  .key small { font-size: 9px; letter-spacing: 2px; color: var(--muted); margin-top: -2px; height: 10px; }
+  .key:active, .key.pressed { background: var(--card-2); transform: scale(0.93); }
+  .key.sym { font-size: 28px; }
+
+  .dial-actions {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 20px 10px;
+  }
+  .dial-actions button {
+    padding: 14px 10px; border-radius: 16px; border: 1px solid var(--border);
+    font-weight: 600; font-size: 13px; cursor: pointer; font-family: inherit;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    transition: transform .1s;
+  }
+  .dial-actions button:active { transform: scale(0.97); }
+  .dial-actions button svg { width: 20px; height: 20px; }
+  .btn-msg { background: var(--blue-dim); color: #0a6cd6; border-color: rgba(10,132,255,0.3) !important; }
+  .btn-call { background: var(--green-dim); color: var(--green); border-color: rgba(48,209,88,0.3) !important; }
+  .dial-clear {
+    position: absolute; right: 20px; top: 20px; background: none; border: 0; color: var(--muted);
+    font-size: 12px; cursor: pointer; padding: 6px;
+  }
+  .dial-wrap { position: relative; display: flex; flex-direction: column; flex: 1; }
+
+  /* ---------- Arama geçmişi ---------- */
+  .filter-chips { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; scrollbar-width: none; }
+  .filter-chips::-webkit-scrollbar { display: none; }
+  .chip {
+    padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    background: var(--card); border: 1px solid var(--border); color: var(--muted);
+    cursor: pointer; white-space: nowrap; font-family: inherit;
+  }
+  .chip.active { background: var(--amber-dim); color: var(--amber); border-color: rgba(255,159,10,0.4); }
+  .call {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px; border-radius: 16px; margin-bottom: 8px;
+    background: var(--card); border: 1px solid var(--border);
+    cursor: pointer; transition: background .15s;
+  }
+  .call:active { background: var(--card-2); }
+  .call .dir {
+    width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0;
+  }
+  .call .dir svg { width: 16px; height: 16px; }
+  .dir.in { background: var(--green-dim); color: var(--green); }
+  .dir.out { background: var(--blue-dim); color: #0a6cd6; }
+  .dir.missed { background: rgba(255,69,58,0.15); color: var(--danger); }
+  .call .info { flex: 1; min-width: 0; }
+  .call .name { font-size: 14px; font-weight: 600; }
+  .call.missed .name { color: var(--danger); }
+  .call .meta { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .call .when { text-align: right; font-size: 11px; color: var(--muted); }
+  .call .redial {
+    width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--green-dim); color: var(--green);
+    display: grid; place-items: center; cursor: pointer; margin-top: 6px; margin-left: auto;
+  }
+  .call .redial svg { width: 15px; height: 15px; }
+
+  .call-overlay {
+    position: absolute; inset: 0; z-index: 30; background: rgba(255,255,255,0.96);
+    display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px;
+  }
+  .call-overlay.open { display: flex; animation: fadeIn .3s ease; }
+  .call-overlay .avatar { width: 96px; height: 96px; border-radius: 32px; font-size: 32px; margin-bottom: 18px; }
+  .call-overlay .cname { font-size: 22px; font-weight: 700; }
+  .call-overlay .cstate { font-size: 13px; color: var(--amber); margin-top: 6px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .call-overlay .end {
+    margin-top: 48px; width: 72px; height: 72px; border-radius: 50%; border: 0;
+    background: var(--danger); color: #fff; cursor: pointer; display: grid; place-items: center;
+  }
+  .call-overlay .end svg { width: 28px; height: 28px; }
+
+  /* ---------- Alt menü ---------- */
+  .bottomnav {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    padding: 8px 8px 22px; border-top: 1px solid var(--border);
+    background: rgba(255,255,255,0.95); backdrop-filter: blur(12px);
+    z-index: 10;
+  }
+  .tab {
+    background: none; border: 0; color: var(--muted); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 6px 0; font-family: inherit; font-size: 11px; font-weight: 600;
+    transition: color .2s;
+  }
+  .tab svg { width: 22px; height: 22px; transition: transform .2s; }
+  .tab.active { color: var(--amber); }
+  .tab.active svg { transform: translateY(-2px); filter: drop-shadow(0 0 6px rgba(255,159,10,0.5)); }
+  .tab .badge {
+    position: absolute; margin-left: 18px; margin-top: -18px;
+    background: var(--danger); color: #fff; font-size: 9px; font-weight: 700;
+    padding: 1px 5px; border-radius: 10px; display: none;
+  }
+  .tab .badge.show { display: inline-block; }
+  .tab-wrap { position: relative; }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: absolute; top: 80px; left: 50%; transform: translate(-50%, -20px);
+    background: var(--bg-2); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 16px; border-radius: 14px; font-size: 13px; z-index: 40;
+    opacity: 0; pointer-events: none; transition: all .3s;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5); white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 480px) {
+    body { background: var(--bg); }
+    .phone {
+      width: 100vw; height: 100dvh; max-height: none;
+      padding: 0; border-radius: 0; box-shadow: none; background: var(--bg);
+    }
+    .screen-frame { border-radius: 0; }
+    .notch { display: none; }
+    .mesh-stats { gap: 7px; font-size: 10px; }
+    .statusbar { padding: 12px 14px 8px; }
+    .stat .label-long { display: none; }
+  }
+  @media (max-width: 360px) {
+    .mesh-stats .stat:nth-child(2) { display: none; }
+    .key { width: 64px; height: 64px; }
+    .keypad { gap: 10px 14px; padding: 8px 20px 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+
+  /* ---- Yalnızca mobil uygulama görünümü (telefon çerçevesi yok, beyaz tema) ---- */
+  body { background: #ffffff; align-items: center; justify-content: center; }
+  .phone {
+    width: 100%; max-width: 430px; height: 100dvh; max-height: none;
+    padding: 0; border-radius: 0; box-shadow: none; background: var(--bg);
+  }
+  .screen-frame { border-radius: 0; }
+  .notch { display: none; }
+
+  /* ---- Kayıt ekranı ---- */
+  .reg {
+    position: absolute; inset: 0; z-index: 50; background: var(--bg);
+    display: none; flex-direction: column; justify-content: center; padding: 28px 24px;
+  }
+  .reg.open { display: flex; animation: fadeIn .35s ease; }
+  .reg .logo {
+    width: 64px; height: 64px; border-radius: 20px; margin-bottom: 18px;
+    background: linear-gradient(135deg, #ff9f0a, #ff5e00); display: grid; place-items: center;
+    color: #fff; font-size: 26px; font-weight: 800;
+  }
+  .reg .logo-img { width: 96px; height: 96px; border-radius: 24px; margin-bottom: 18px; }
+  .reg h1 { font-size: 26px; margin-bottom: 6px; }
+  .reg p.lead { font-size: 13px; color: var(--muted); margin-bottom: 22px; line-height: 1.5; }
+  .reg .err { color: var(--danger); font-size: 12px; min-height: 16px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<canvas id="mesh-bg"></canvas>
+<div class="topo"></div>
+<div class="vignette"></div>
+
+<div class="phone">
+  <div class="screen-frame">
+    <div class="notch"></div>
+
+    <!-- Mesh durum çubuğu -->
+    <div class="statusbar">
+      <div class="mesh-stats">
+        <div class="stat" title="ESP-NOW sinyal gücü">
+          <span class="dot"></span>
+          <span class="label-long">RSSI</span> <b id="rssi">-68</b><span>dBm</span>
+        </div>
+        <div class="stat" title="Veri hızı">
+          <b>1</b><span>Mbps</span>
+        </div>
+        <div class="stat" title="Aktif düğüm sayısı">
+          <span>Active</span> <b id="nodeCount">1</b><span>Nodes</span>
+        </div>
+      </div>
+      <div class="battery" title="Pil">
+        <span id="batteryPct" style="font-weight:600;color:var(--text)">78%</span>
+        <div class="battery-body"><div class="battery-fill" id="batteryFill"></div></div>
+      </div>
+    </div>
+
+    <div class="screens">
+
+      <!-- ============ KİŞİLER ============ -->
+      <section class="screen active" id="screen-contacts">
+        <div class="header">
+          <div>
+            <div style="display:flex;align-items:center;gap:10px"><img src="icon.png" alt="" style="width:34px;height:34px;border-radius:10px"><h1>Kişiler</h1></div>
+            <div class="sub" id="contactSub">Henüz düğüm yok</div>
+          </div>
+          <button class="icon-btn" id="openAddSheet" aria-label="Yeni düğüm ekle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+        <div class="scroll">
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="contactSearch" placeholder="İsim veya MAC ara..." autocomplete="off">
+          </div>
+          <div id="contactList"></div>
+          <button class="add-btn" id="openAddSheet2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            Yeni Düğüm / Kişi Ekle
+          </button>
+        </div>
+      </section>
+
+      <!-- ============ MESAJLAR ============ -->
+      <section class="screen" id="screen-messages">
+        <div id="chatEmpty" class="header">
+          <div>
+            <h1>Mesajlar</h1>
+            <div class="sub">Mesh üzerinden şifresiz kısa mesaj</div>
+          </div>
+        </div>
+        <div id="chatView" style="display:none;flex-direction:column;flex:1;min-height:0;">
+          <div class="chat-head">
+            <button class="back" id="chatBack" aria-label="Geri">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <div class="avatar" id="chatAvatar" style="width:38px;height:38px;border-radius:12px;font-size:13px;">--</div>
+            <div class="who">
+              <div class="name" id="chatName">-</div>
+              <div class="route" id="chatRoute">-</div>
+            </div>
+            <button class="back call-btn" id="chatCall" aria-label="Mesh arama">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>
+            </button>
+          </div>
+          <div class="chat-body" id="chatBody"></div>
+          <form class="composer" id="composer">
+            <textarea id="msgInput" rows="1" placeholder="Mesaj yaz..." maxlength="200"></textarea>
+            <button class="send-btn" id="sendBtn" type="submit" disabled>Gönder</button>
+          </form>
+        </div>
+        <div class="scroll" id="chatPlaceholder" style="padding-top:4px;">
+          <div class="empty-chat">
+            <div class="big">💬</div>
+            Henüz bir sohbet seçilmedi.<br>Kişiler sekmesinden bir düğüm seç.
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ NUMARA ÇEVİRİCİ ============ -->
+      <section class="screen" id="screen-dialer">
+        <div class="header">
+          <div>
+            <h1>Tuş Takımı</h1>
+            <div class="sub">Mesh ID / MAC ile arama</div>
+          </div>
+        </div>
+        <div class="dial-wrap">
+          <div class="dial-display">
+            <div class="dial-number" id="dialNumber"><span class="caret"></span></div>
+            <div class="dial-hint" id="dialHint">Numara gir</div>
+          </div>
+          <button class="dial-clear" id="dialClear">Sil</button>
+
+          <div class="keypad" id="keypad"></div>
+
+          <div class="dial-actions">
+            <button class="btn-msg" id="btnToMsg">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Mesaja Git
+            </button>
+            <button class="btn-call" id="btnMeshCall">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>
+              Mesh Arama
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ARAMA GEÇMİŞİ ============ -->
+      <section class="screen" id="screen-log">
+        <div class="header">
+          <div>
+            <h1>Arama Geçmişi</h1>
+            <div class="sub" id="logSub">Mesh çağrıları</div>
+          </div>
+        </div>
+        <div class="scroll">
+          <div class="filter-chips" id="filterChips">
+            <button class="chip active" data-filter="all">Tümü</button>
+            <button class="chip" data-filter="in">Gelen</button>
+            <button class="chip" data-filter="out">Giden</button>
+            <button class="chip" data-filter="missed">Cevapsız</button>
+          </div>
+          <div id="callList"></div>
+        </div>
+      </section>
+
+      <!-- Yeni düğüm sheet -->
+      <div class="sheet-overlay" id="sheetOverlay"></div>
+      <div class="sheet" id="addSheet">
+        <div class="grip"></div>
+        <h2>Yeni Düğüm / Kişi Ekle</h2>
+        <div class="field">
+          <label for="newName">Ad / Etiket</label>
+          <input id="newName" placeholder="örn. Depo Düğümü, Ahmet" maxlength="24">
+        </div>
+        <div class="field">
+          <label for="newMac">MAC Adresi</label>
+          <input id="newMac" class="mono" placeholder="24:0A:C4:12:9F:01" maxlength="17" autocomplete="off">
+          <div class="hint" id="macHint">Format: AA:BB:CC:DD:EE:FF</div>
+        </div>
+        <button class="btn-primary" id="saveNode">Düğümü Kaydet</button>
+        <button class="btn-secondary" id="cancelNode">Vazgeç</button>
+      </div>
+
+      <!-- Arama overlay -->
+      <div class="call-overlay" id="callOverlay">
+        <div class="avatar" id="callAvatar">--</div>
+        <div class="cname" id="callName">-</div>
+        <div class="cstate" id="callState">Mesh üzerinden aranıyor...</div>
+        <button class="end" id="endCall" aria-label="Aramayı bitir">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M10.7 13.3a16 16 0 0 0 3.6 2.5l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2v3a2 2 0 0 1-2.2 2"/><path d="M2 2l20 20"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Alt menü -->
+    <nav class="bottomnav">
+      <div class="tab-wrap">
+        <button class="tab active" data-tab="contacts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+          Kişiler
+        </button>
+      </div>
+      <div class="tab-wrap">
+        <button class="tab" data-tab="messages">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Mesajlar
+          <span class="badge" id="unreadBadge">0</span>
+        </button>
+      </div>
+      <div class="tab-wrap">
+        <button class="tab" data-tab="dialer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M11 18h2"/><path d="M8.5 7h.01M12 7h.01M15.5 7h.01M8.5 11h.01M12 11h.01M15.5 11h.01"/></svg>
+          Tuş
+        </button>
+      </div>
+      <div class="tab-wrap">
+        <button class="tab" data-tab="log">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          Geçmiş
+        </button>
+      </div>
+    </nav>
+
+    <div class="reg" id="reg">
+      <img class="logo-img" src="icon.png" alt="Free Mesh">
+      <h1>Free Mesh'e hoş geldin</h1>
+      <p class="lead">Mesh ağında kullanılacak kendi numaranı ve adını gir. Bu bilgiler yalnızca bu cihazda saklanır.</p>
+      <div class="field">
+        <label for="regName">Adın</label>
+        <input id="regName" placeholder="örn. Çınar" maxlength="24" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="regNumber">Numaran</label>
+        <input id="regNumber" type="tel" placeholder="+90 5xx xxx xx xx" maxlength="18" autocomplete="off">
+        <div class="hint">10–15 haneli numara (başında + olabilir)</div>
+      </div>
+      <div class="err" id="regErr"></div>
+      <button class="btn-primary" id="regSave">Kaydol</button>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  /* ---------- Yardımcılar ---------- */
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const pad = n => String(n).padStart(2, '0');
+  const now = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const initials = name => name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  const MAC_RE = /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/;
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  /* ---------- Veri ---------- */
+  // rssi: dBm, hop: kaç atlama (mesh), color: avatar rengi
+  let contacts = [];
+
+  const messages = {};
+
+  let calls = [];
+
+  let activeContact = null;
+  let dialBuffer = '';
+  let me = null; // kendi kaydın: { name, number }
+  let unread = 0;
+
+  /* ---------- Sekme navigasyonu ---------- */
+  function showTab(name) {
+    $$('.screen').forEach(s => s.classList.remove('active'));
+    $(`#screen-${name}`).classList.add('active');
+    $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    if (name === 'messages') {
+      $('#unreadBadge').classList.remove('show');
+      unread = 0;
+    }
+    if (name === 'log') renderLog();
+  }
+  $$('.tab').forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+
+  /* ---------- Sinyal çubukları ---------- */
+  function signalBars(rssi) {
+    const level = rssi > -60 ? 4 : rssi > -70 ? 3 : rssi > -80 ? 2 : 1;
+    const cls = level >= 3 ? 'on' : level === 2 ? 'on mid' : 'on weak';
+    let html = '';
+    for (let i = 1; i <= 4; i++) {
+      html += `<i style="height:${i * 3}px" class="${i <= level ? cls : ''}"></i>`;
+    }
+    return `<div class="bars">${html}</div>`;
+  }
+
+  /* ---------- Kişiler ---------- */
+  function renderContacts(filter = '') {
+    const q = filter.trim().toLowerCase();
+    const list = contacts.filter(c =>
+      !q || c.name.toLowerCase().includes(q) || c.mac.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)
+    );
+    const el = $('#contactList');
+    if (!list.length) {
+      el.innerHTML = `<div class="empty-chat" style="padding:24px 0">${contacts.length ? 'Eşleşen düğüm yok.' : 'Henüz düğüm yok. + ile yeni düğüm ekle.'}</div>`;
+      return;
+    }
+    el.innerHTML = list.map(c => {
+      const dotColor = !c.online ? 'var(--muted)' : c.rssi > -70 ? 'var(--green)' : c.rssi > -80 ? 'var(--amber)' : 'var(--danger)';
+      return `
+        <div class="contact" data-id="${c.id}">
+          <div class="avatar ${c.color}">${esc(initials(c.name))}<span class="status" style="background:${dotColor}"></span></div>
+          <div class="info">
+            <div class="name">${esc(c.name)}</div>
+            <div class="meta">${c.id} · ${c.mac}</div>
+          </div>
+          <div class="signal">
+            ${signalBars(c.rssi)}
+            <div class="val">${c.online ? c.rssi + ' dBm' : 'Çevrimdışı'}</div>
+            <div>${c.online ? c.hop + ' atlama' : '—'}</div>
+          </div>
+        </div>`;
+    }).join('');
+    $$('.contact', el).forEach(card => {
+      card.addEventListener('click', () => {
+        const c = contacts.find(x => x.id === card.dataset.id);
+        openChat(c);
+      });
+    });
+    const online = contacts.filter(c => c.online).length;
+    $('#contactSub').textContent = `${me ? 'Numaran: ' + me.number + ' · ' : ''}${online} düğüm çevrimiçi`;
+    $('#nodeCount').textContent = online + 1;
+  }
+  $('#contactSearch').addEventListener('input', e => renderContacts(e.target.value));
+
+  /* ---------- Yeni düğüm sheet ---------- */
+  function openSheet() {
+    $('#addSheet').classList.add('open');
+    $('#sheetOverlay').classList.add('open');
+    setTimeout(() => $('#newName').focus(), 300);
+  }
+  function closeSheet() {
+    $('#addSheet').classList.remove('open');
+    $('#sheetOverlay').classList.remove('open');
+    $('#newName').value = '';
+    $('#newMac').value = '';
+    setHint('Format: AA:BB:CC:DD:EE:FF', false);
+  }
+  function setHint(text, isErr) {
+    const h = $('#macHint');
+    h.textContent = text;
+    h.classList.toggle('err', isErr);
+  }
+  $('#openAddSheet').addEventListener('click', openSheet);
+  $('#openAddSheet2').addEventListener('click', openSheet);
+  $('#cancelNode').addEventListener('click', closeSheet);
+  $('#sheetOverlay').addEventListener('click', closeSheet);
+
+  // MAC otomatik biçimlendirme (iki haneden sonra ':')
+  $('#newMac').addEventListener('input', e => {
+    let v = e.target.value.replace(/[^0-9a-fA-F]/g, '').toUpperCase().slice(0, 12);
+    e.target.value = v.match(/.{1,2}/g)?.join(':') || '';
+    setHint(e.target.value.length ? (MAC_RE.test(e.target.value) ? 'Geçerli MAC' : 'Eksik karakter') : 'Format: AA:BB:CC:DD:EE:FF', false);
+  });
+
+  $('#saveNode').addEventListener('click', () => {
+    const name = $('#newName').value.trim();
+    const mac = $('#newMac').value.trim().toUpperCase();
+    if (!name) { toast('Lütfen bir ad gir'); return; }
+    if (!MAC_RE.test(mac)) { setHint('Geçersiz MAC adresi', true); return; }
+    if (contacts.some(c => c.mac === mac)) { setHint('Bu MAC zaten kayıtlı', true); return; }
+    const id = 'NODE-' + String.fromCharCode(65 + Math.floor(Math.random() * 26)) + Math.floor(Math.random() * 9 + 1);
+    contacts.unshift({
+      id, name, mac,
+      rssi: -60 - Math.floor(Math.random() * 25),
+      hop: 1 + Math.floor(Math.random() * 3),
+      color: '', online: true,
+    });
+    closeSheet();
+    renderContacts($('#contactSearch').value);
+    toast(`${name} eklendi`);
+  });
+
+  /* ---------- Mesajlar ---------- */
+  function openChat(c) {
+    activeContact = c;
+    showTab('messages');
+    $('#chatEmpty').style.display = 'none';
+    $('#chatPlaceholder').style.display = 'none';
+    $('#chatView').style.display = 'flex';
+    $('#chatAvatar').textContent = initials(c.name);
+    $('#chatAvatar').className = 'avatar ' + c.color;
+    $('#chatName').textContent = c.name;
+    $('#chatRoute').textContent = `${c.id} · ${c.mac} · ${c.online ? c.hop + ' atlama' : 'Çevrimdışı'}`;
+    renderChat();
+    setTimeout(() => $('#msgInput').focus(), 300);
+  }
+  function renderChat() {
+    if (!activeContact) return;
+    const msgs = messages[activeContact.id] || [];
+    const body = $('#chatBody');
+    body.innerHTML = `<div class="day-tag">Bugün</div>` + msgs.map(m => `
+      <div class="bubble ${m.from}">
+        ${esc(m.text)}
+        <div class="time">
+          ${m.t}
+          ${m.from === 'out' ? `<span class="tick ${m.ack ? '' : 'pending'}">${m.ack ? '✓✓' : '✓'}</span>` : ''}
+        </div>
+        ${m.hops ? `<div class="hops">↪ ${m.hops} atlama ile iletildi</div>` : ''}
+      </div>`).join('');
+    body.scrollTop = body.scrollHeight;
+  }
+  $('#chatBack').addEventListener('click', () => {
+    activeContact = null;
+    $('#chatView').style.display = 'none';
+    $('#chatPlaceholder').style.display = 'block';
+    $('#chatEmpty').style.display = 'flex';
+    showTab('contacts');
+  });
+
+  const msgInput = $('#msgInput');
+  const sendBtn = $('#sendBtn');
+  msgInput.addEventListener('input', () => {
+    msgInput.style.height = 'auto';
+    msgInput.style.height = Math.min(msgInput.scrollHeight, 110) + 'px';
+    sendBtn.disabled = !msgInput.value.trim();
+  });
+  msgInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#composer').requestSubmit(); }
+  });
+  $('#composer').addEventListener('submit', e => {
+    e.preventDefault();
+    const text = msgInput.value.trim();
+    if (!text || !activeContact) return;
+    if (!activeContact.online) { toast('Düğüm çevrimdışı — mesaj kuyruğa alındı'); }
+    const list = messages[activeContact.id] || (messages[activeContact.id] = []);
+    const msg = { from: 'out', text, t: now(), hops: activeContact.hop, ack: false };
+    list.push(msg);
+    msgInput.value = '';
+    msgInput.style.height = 'auto';
+    sendBtn.disabled = true;
+    renderChat();
+    // Mesh iletim onayı simülasyonu
+    setTimeout(() => { msg.ack = true; renderChat(); }, 900);
+  });
+
+  /* ---------- Numara çevirici ---------- */
+  const keys = [
+    ['1',''],['2','ABC'],['3','DEF'],
+    ['4','GHI'],['5','JKL'],['6','MNO'],
+    ['7','PQRS'],['8','TUV'],['9','WXYZ'],
+    ['*',''],['0','+'],['#',''],
+  ];
+  $('#keypad').innerHTML = keys.map(([k, sub]) =>
+    `<button class="key ${/[*#]/.test(k) ? 'sym' : ''}" data-k="${k}">${k}<small>${sub}</small></button>`
+  ).join('');
+
+  function renderDial() {
+    const el = $('#dialNumber');
+    el.innerHTML = (dialBuffer ? esc(dialBuffer) : '') + '<span class="caret"></span>';
+    const hint = $('#dialHint');
+    if (!dialBuffer) { hint.textContent = 'Numara gir'; return; }
+    const match = contacts.find(c => c.id.toLowerCase() === dialBuffer.toLowerCase() || c.mac.replace(/:/g,'').toLowerCase() === dialBuffer.toLowerCase());
+    if (match) hint.innerHTML = `<span class="ok">✓ ${esc(match.name)} bulundu</span>`;
+    else hint.innerHTML = `<span class="no">Kayıtlı düğüm değil — ID veya MAC girin</span>`;
+  }
+  $('#keypad').addEventListener('click', e => {
+    const btn = e.target.closest('.key');
+    if (!btn) return;
+    dialBuffer = (dialBuffer + btn.dataset.k).slice(0, 17);
+    btn.classList.add('pressed');
+    setTimeout(() => btn.classList.remove('pressed'), 120);
+    renderDial();
+  });
+  $('#dialClear').addEventListener('click', () => { dialBuffer = dialBuffer.slice(0, -1); renderDial(); });
+  $('#dialClear').addEventListener('dblclick', () => { dialBuffer = ''; renderDial(); });
+
+  $('#btnToMsg').addEventListener('click', () => {
+    if (!dialBuffer) { toast('Önce bir ID gir'); return; }
+    if (isSelf(dialBuffer)) { toast('Kendi numaranı çeviremezsin'); return; }
+    
+    const match = contacts.find(c => c.id.toLowerCase() === dialBuffer.toLowerCase());
+    if (match) { openChat(match); return; }
+    // Kayıtlı değilse geçici kişi olarak aç
+    const temp = { id: dialBuffer.toUpperCase(), name: 'Bilinmeyen Düğüm', mac: dialBuffer.toUpperCase(), rssi: -90, hop: 5, color: '', online: false };
+    openChat(temp);
+  });
+
+  $('#btnMeshCall').addEventListener('click', () => {
+    if (!dialBuffer) { toast('Önce bir ID gir'); return; }
+    if (isSelf(dialBuffer)) { toast('Kendi numaranı çeviremezsin'); return; }
+    
+    const match = contacts.find(c => c.id.toLowerCase() === dialBuffer.toLowerCase());
+    startCall(match ? match : { id: dialBuffer.toUpperCase(), name: 'Bilinmeyen Düğüm', color: '' });
+  });
+
+  /* ---------- Arama ---------- */
+  let callTimer = null;
+  function startCall(c) {
+    $('#callAvatar').textContent = initials(c.name);
+    $('#callAvatar').className = 'avatar ' + (c.color || '');
+    $('#callName').textContent = c.name;
+    $('#callState').textContent = 'Mesh üzerinden aranıyor...';
+    $('#callOverlay').classList.add('open');
+    calls.unshift({ type: 'out', id: c.id, t: now(), dur: '' });
+    callTimer = setTimeout(() => {
+      if (!$('#callOverlay').classList.contains('open')) return;
+      $('#callState').textContent = 'Bağlandı · ESP-NOW (1 Mbps)';
+    }, 2200);
+  }
+  function endCall() {
+    clearTimeout(callTimer);
+    $('#callOverlay').classList.remove('open');
+    toast('Arama sonlandırıldı');
+  }
+  $('#endCall').addEventListener('click', endCall);
+
+  /* ---------- Arama geçmişi ---------- */
+  let logFilter = 'all';
+  function renderLog() {
+    const list = calls.filter(c => logFilter === 'all' || c.type === logFilter);
+    const label = { in: 'Gelen', out: 'Giden', missed: 'Cevapsız' };
+    const arrow = {
+      in:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M17 7 7 17M7 9v8h8"/></svg>',
+      out:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 17 17 7M9 7h8v8"/></svg>',
+      missed: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M17 7 7 17M17 15v-8H9"/></svg>',
+    };
+    const el = $('#callList');
+    if (!list.length) { el.innerHTML = `<div class="empty-chat" style="padding:24px 0">Bu filtrede kayıt yok.</div>`; }
+    else {
+      el.innerHTML = list.map(c => {
+        const who = contacts.find(x => x.id === c.id);
+        const name = who ? who.name : 'Bilinmeyen Düğüm';
+        const mac = who ? who.mac : c.id;
+        return `
+          <div class="call ${c.type}" data-id="${c.id}">
+            <div class="dir ${c.type}">${arrow[c.type]}</div>
+            <div class="info">
+              <div class="name">${esc(name)}</div>
+              <div class="meta">${c.id} · ${label[c.type]}${c.dur ? ' · ' + c.dur : ''}</div>
+            </div>
+            <div class="when">
+              ${c.t}
+              <button class="redial" data-redial="${c.id}" aria-label="Geri ara">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>
+              </button>
+            </div>
+          </div>`;
+      }).join('');
+    }
+    const missedCount = calls.filter(c => c.type === 'missed').length;
+    $('#logSub').textContent = `${calls.length} kayıt · ${missedCount} cevapsız`;
+  }
+  $$('#filterChips .chip').forEach(ch => ch.addEventListener('click', () => {
+    $$('#filterChips .chip').forEach(x => x.classList.remove('active'));
+    ch.classList.add('active');
+    logFilter = ch.dataset.filter;
+    renderLog();
+  }));
+  $('#callList').addEventListener('click', e => {
+    const redial = e.target.closest('[data-redial]');
+    const row = e.target.closest('.call');
+    const id = (redial || row)?.dataset.id || (redial?.dataset.redial);
+    if (!id) return;
+    const who = contacts.find(x => x.id === id) || { id, name: 'Bilinmeyen Düğüm', color: '' };
+    if (redial) { startCall(who); return; }
+    // Satıra tıklanınca numara çevirici alanına doldur
+    dialBuffer = id;
+    renderDial();
+    showTab('dialer');
+  });
+
+  /* ---------- Sayaçlar ---------- */
+  function renderUnread() {
+    const b = $('#unreadBadge');
+    b.textContent = unread;
+    b.classList.toggle('show', unread > 0);
+  }
+
+  /* ---------- Batarya / RSSI simülasyonu ---------- */
+  let battery = 78;
+  setInterval(() => {
+    battery = Math.max(5, battery - 1);
+    $('#batteryPct').textContent = battery + '%';
+    $('#batteryFill').style.width = battery + '%';
+    $('#batteryFill').style.background = battery < 20 ? 'var(--danger)' : battery < 40 ? 'var(--amber)' : 'var(--green)';
+  }, 60000);
+  setInterval(() => {
+    const base = -68;
+    const v = base + Math.floor(Math.random() * 7) - 3;
+    $('#rssi').textContent = v;
+  }, 2500);
+
+  /* ---------- Mesh arka plan (Canvas düğüm ağı) ---------- */
+  const cvs = $('#mesh-bg');
+  const ctx = cvs.getContext('2d');
+  let W, H, nodes = [];
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cvs.width = innerWidth * dpr;
+    H = cvs.height = innerHeight * dpr;
+    cvs.style.width = innerWidth + 'px';
+    cvs.style.height = innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const count = Math.round((innerWidth * innerHeight) / 26000) + 12;
+    nodes = Array.from({ length: count }, () => ({
+      x: Math.random() * innerWidth,
+      y: Math.random() * innerHeight,
+      vx: (Math.random() - .5) * .18,
+      vy: (Math.random() - .5) * .18,
+      r: Math.random() * 1.4 + 0.8,
+      c: Math.random() < .2 ? '255,159,10' : Math.random() < .3 ? '48,209,88' : '10,132,255',
+    }));
+  }
+  function drawMesh() {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    const maxD = 150;
+    for (const n of nodes) {
+      n.x += n.vx; n.y += n.vy;
+      if (n.x < -20) n.x = innerWidth + 20;
+      if (n.x > innerWidth + 20) n.x = -20;
+      if (n.y < -20) n.y = innerHeight + 20;
+      if (n.y > innerHeight + 20) n.y = -20;
+    }
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d = Math.hypot(dx, dy);
+        if (d < maxD) {
+          ctx.strokeStyle = `rgba(10,132,255,${(1 - d / maxD) * 0.22})`;
+          ctx.lineWidth = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+      }
+    }
+    for (const n of nodes) {
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${n.c},0.55)`;
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    requestAnimationFrame(drawMesh);
+  }
+  addEventListener('resize', resize);
+  resize();
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) drawMesh();
+
+  /* ---------- Kayıt (kendi numaran) ---------- */
+  const PHONE_RE = /^\+?\d{10,15}$/;
+  function normNumber(v) { return v.replace(/[\s()\-]/g, ''); }
+  function loadMe() { try { return JSON.parse(localStorage.getItem('freemesh.me')) || null; } catch (e) { return null; } }
+  function saveMe(m) { try { localStorage.setItem('freemesh.me', JSON.stringify(m)); } catch (e) {} }
+  function isSelf(v) { return !!me && normNumber(v) === me.number; }
+  function openReg() { $('#reg').classList.add('open'); setTimeout(() => $('#regName').focus(), 300); }
+  $('#regSave').addEventListener('click', () => {
+    const name = $('#regName').value.trim();
+    const number = normNumber($('#regNumber').value.trim());
+    if (!name) { $('#regErr').textContent = 'Lütfen adını gir'; return; }
+    if (!PHONE_RE.test(number)) { $('#regErr').textContent = 'Geçerli bir numara gir (10–15 hane)'; return; }
+    me = { name, number };
+    saveMe(me);
+    $('#reg').classList.remove('open');
+    renderContacts();
+    toast('Hoş geldin, ' + name);
+  });
+  $('#regNumber').addEventListener('input', () => { $('#regErr').textContent = ''; });
+
+  /* ---------- Başlangıç ---------- */
+  // Tuş takımı başlangıç durumu
+  me = loadMe();
+  if (!me) openReg();
+  renderDial();
+  renderContacts();
+  renderUnread();
+  renderLog();
+  // Kullanıcıyı "Mesajlar" sekmesi için uyarı
+  setTimeout(() => { if (unread) { $('#unreadBadge').classList.add('show'); } }, 600);
+})();
+</script>
+</body>
+</html>

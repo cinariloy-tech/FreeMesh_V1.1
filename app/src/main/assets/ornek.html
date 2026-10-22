@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Free Mesh - Örnek Kayıt</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: #fff; color: #1f2328;
+         max-width: 420px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 22px; }
+  label { display: block; font-size: 13px; color: #656d76; margin: 14px 0 6px; }
+  input { width: 100%; padding: 12px; border: 1px solid #d0d7de; border-radius: 12px; font-size: 15px; box-sizing: border-box; }
+  button { width: 100%; margin-top: 18px; padding: 14px; border: 0; border-radius: 14px;
+           background: linear-gradient(135deg, #ff9f0a, #ff5e00); color: #fff; font-weight: 700; font-size: 15px; }
+  .bubble { margin-top: 20px; padding: 10px 14px; border-radius: 18px; background: #0a84ff; color: #fff;
+            display: none; max-width: 80%; margin-left: auto; }
+  .note { font-size: 12px; color: #656d76; margin-top: 16px; }
+</style>
+</head>
+<body>
+  <h1>Örnek: Kendi numaranla kayıt</h1>
+  <p class="note">Bu sayfa yalnızca örnek amaçlıdır. Hazır kişi veya bot içermez.</p>
+
+  <label for="name">Adın</label>
+  <input id="name" placeholder="örn. Çınar">
+
+  <label for="num">Numaran</label>
+  <input id="num" type="tel" placeholder="+90 5xx xxx xx xx">
+
+  <button id="go">Kaydol</button>
+
+  <div class="bubble" id="bubble"></div>
+
+<script>
+  document.getElementById('go').addEventListener('click', () => {
+    const name = document.getElementById('name').value.trim();
+    const num = document.getElementById('num').value.replace(/[\s()\-]/g, '');
+    const b = document.getElementById('bubble');
+    if (!name || !/^\+?\d{10,15}$/.test(num)) { b.style.display = 'none'; alert('Ad ve geçerli numara gir.'); return; }
+    b.textContent = name + ' (' + num + ') olarak kaydoldun. İlk mesajın hazır.';
+    b.style.display = 'block';
+  });
+</script>
+</body>
+</html>
