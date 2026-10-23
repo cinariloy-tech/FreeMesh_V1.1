@@ -16,3 +16,30 @@ workflows:
           ./gradle-8.7/bin/gradle assembleDebug --no-daemon
     artifacts:
       - app/build/outputs/apk/debug/app-debug.apk
+
+  ios-ipa:
+    name: Free Mesh iOS IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 40
+    environment:
+      xcode: latest
+    scripts:
+      - name: Generate Xcode project
+        script: |
+          brew install xcodegen
+          cd ios
+          xcodegen generate
+      - name: Build unsigned app
+        script: |
+          cd ios
+          xcodebuild -project FreeMesh.xcodeproj -scheme FreeMesh -sdk iphoneos \
+            -configuration Release -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            clean build
+      - name: Package IPA
+        script: |
+          cd ios/build/Build/Products/Release-iphoneos
+          rm -rf Payload && mkdir Payload && cp -R FreeMesh.app Payload/
+          zip -qr FreeMesh.ipa Payload
+    artifacts:
+      - ios/build/Build/Products/Release-iphoneos/FreeMesh.ipa
