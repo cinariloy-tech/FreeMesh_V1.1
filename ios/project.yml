@@ -1,0 +1,48 @@
+name: FreeMesh
+options:
+  bundleIdPrefix: com.freemesh
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    PRODUCT_BUNDLE_IDENTIFIER: com.freemesh.app
+    CODE_SIGNING_ALLOWED: NO
+    CODE_SIGNING_REQUIRED: NO
+targets:
+  FreeMesh:
+    type: application
+    platform: iOS
+    sources:
+      - path: FreeMesh
+        excludes:
+          - web/**
+          - Assets.xcassets/**
+          - Info.plist
+    resources:
+      - path: FreeMesh/web
+        type: folder
+      - path: FreeMesh/Assets.xcassets
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: FreeMesh/Info.plist
+    info:
+      path: FreeMesh/Info.plist
+      properties:
+        CFBundleDisplayName: Free Mesh
+        CFBundleName: FreeMesh
+        CFBundleShortVersionString: "1.5"
+        CFBundleVersion: "5"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSBluetoothAlwaysUsageDescription: ESP32 mesh düğümü ile iletişim için Bluetooth gerekir.
+        ITSAppUsesNonExemptEncryption: false
+schemes:
+  FreeMesh:
+    build:
+      targets:
+        FreeMesh: all
